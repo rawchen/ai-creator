@@ -3,12 +3,13 @@ cd front
 npm i
 npm run build
 
+rm -rf ../src/main/resources/static/*
 cp -r dist/* ../src/main/resources/static/
 
 ## 制作镜像并推送到镜像仓库
-cd ../
-mvn package
-cp ./target/ai-creator-0.0.1-SNAPSHOT.jar ./ai-creator-0.0.1-SNAPSHOT.jar
+#cd ../
+#mvn package
+#cp ./target/ai-creator-0.0.1-SNAPSHOT.jar ./ai-creator-0.0.1-SNAPSHOT.jar
 #
 # docker volume create ai-creator-log
 # docker build -t ai-creator .
