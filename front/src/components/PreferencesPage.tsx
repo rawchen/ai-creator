@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, User, FileText, Loader2, CheckCircle, AlertCircle, Sparkles } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { aiContentApi } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 
 interface PreferencesPageProps {
@@ -23,35 +23,24 @@ const PreferencesPage: React.FC<PreferencesPageProps> = ({ sessionId, onComplete
   // 文件上传处理
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return
-    
+
     const file = acceptedFiles[0]
     setIsUploading(true)
-    
+
     try {
-      // 转换为base64
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.readAsDataURL(file)
-      })
-      
-      // 调用文件上传Edge Function
-      const { data, error } = await supabase.functions.invoke('file-upload', {
-        body: {
-          fileData: base64,
-          fileName: file.name,
-          sessionId
-        }
-      })
-      
-      if (error) throw error
-      
-      setUploadedFile(data.data)
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('sessionId', sessionId)
+
+      const result: any = await aiContentApi.uploadFile(formData)
+
+      setUploadedFile(result)
       showSuccess('文件上传成功！')
-      
+      // console.log('result text:', result.data.extractedContent)
+
       // 如果有文本内容，自动分析
-      if (data.data.extractedContent) {
-        await analyzeFile(data.data.extractedContent, data.data.fileId)
+      if (result.data.extractedContent) {
+        await analyzeFile(result.data.extractedContent, result.data.fileId)
       }
     } catch (error: any) {
       showError('文件上传失败：' + error.message)
@@ -64,17 +53,13 @@ const PreferencesPage: React.FC<PreferencesPageProps> = ({ sessionId, onComplete
   const analyzeFile = async (content: string, fileId?: string) => {
     setIsAnalyzing(true)
     try {
-      const { data, error } = await supabase.functions.invoke('file-analyzer', {
-        body: {
-          fileContent: content,
-          sessionId,
-          fileId
-        }
+      const result: any = await aiContentApi.analyzeFile({
+        fileContent: content,
+        sessionId,
+        fileId
       })
-      
-      if (error) throw error
-      
-      setAnalysisResult(data.data.analysis)
+
+      setAnalysisResult(result.data.analysis)
       showSuccess('文件分析完成！')
     } catch (error: any) {
       showError('文件分析失败：' + error.message)
@@ -89,19 +74,14 @@ const PreferencesPage: React.FC<PreferencesPageProps> = ({ sessionId, onComplete
       showError('请输入IP名称')
       return
     }
-    
+
     setIsAnalyzing(true)
     try {
-      const { data, error } = await supabase.functions.invoke('ip-analyzer', {
-        body: {
-          ipName: ipName.trim(),
-          sessionId
-        }
+      const result: any = await aiContentApi.analyzeIP({
+        ipName: ipName.trim(),
+        sessionId
       })
-      
-      if (error) throw error
-      
-      setIpAnalysis(data.data.analysis)
+      setIpAnalysis(result.data.analysis)
       showSuccess('IP分析完成！')
     } catch (error: any) {
       showError('IP分析失败：' + error.message)
@@ -113,28 +93,22 @@ const PreferencesPage: React.FC<PreferencesPageProps> = ({ sessionId, onComplete
   // 保存偏好设置
   const savePreferences = async () => {
     const preferences = activeTab === 'file' ? analysisResult : ipAnalysis
-    
+
     if (!preferences) {
       showError('请先完成分析')
       return
     }
-    
+
     try {
-      // 保存到数据库
-      const { error } = await supabase
-        .from('content_preferences')
-        .upsert({
-          session_id: sessionId,
-          user_style: preferences,
-          keywords: preferences.keywords || preferences.common_keywords || [],
-          writing_tone: preferences.writing_tone,
-          content_structure: preferences.content_structure || preferences.paragraph_structure,
-          target_audience: preferences.target_audience,
-          updated_at: new Date().toISOString()
-        })
-      
-      if (error) throw error
-      
+      await aiContentApi.saveContentPreferences({
+        session_id: sessionId,
+        user_style: preferences,
+        keywords: preferences.keywords || preferences.common_keywords || [],
+        writing_tone: preferences.writing_tone,
+        content_structure: preferences.content_structure || preferences.paragraph_structure,
+        target_audience: preferences.target_audience
+      })
+
       onComplete(preferences)
       showSuccess('偏好设置保存成功！')
     } catch (error: any) {

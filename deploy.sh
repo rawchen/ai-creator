@@ -1,10 +1,14 @@
 # 打包前端项目
 cd front
 npm i
-npm run build
+npm run build:prod
 
 rm -rf ../src/main/resources/static/*
 cp -r dist/* ../src/main/resources/static/
+
+cd ..
+chmod +x remote_deploy.sh
+./remote_deploy.sh
 
 ## 制作镜像并推送到镜像仓库
 #cd ../

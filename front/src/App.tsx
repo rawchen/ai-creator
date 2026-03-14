@@ -7,7 +7,7 @@ import PreferencesPage from './components/PreferencesPage'
 import GeneratorPage from './components/GeneratorPage'
 import HistoryPage from './components/HistoryPage'
 import { useSession } from './hooks/useSession'
-import { supabase } from './lib/supabase'
+import { aiContentApi } from "@/lib/api.ts";
 
 function App() {
   const { sessionId, isLoading: sessionLoading } = useSession()
@@ -25,20 +25,9 @@ function App() {
   const loadUserPreferences = async () => {
     setIsLoadingPreferences(true)
     try {
-      const { data, error } = await supabase
-        .from('content_preferences')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('updated_at', { ascending: false })
-        .maybeSingle()
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('加载用户偏好失败:', error)
-        return
-      }
-
-      if (data) {
-        setUserPreferences(data.user_style)
+      const data: any = await aiContentApi.getContentPreferences(sessionId)
+      if (data && data.user_style) {
+        setUserPreferences(JSON.parse(data.user_style))
       }
     } catch (error) {
       console.error('加载用户偏好失败:', error)

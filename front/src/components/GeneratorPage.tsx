@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Wand2, RefreshCw, Download, Copy, FileText, Loader2, Sparkles, Brain, Zap, Settings, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { aiContentApi } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import ReactMarkdown from 'react-markdown'
 import jsPDF from 'jspdf'
@@ -32,14 +32,7 @@ const GeneratorPage: React.FC<GeneratorPageProps> = ({ sessionId, userPreference
 
   const loadContentHistory = async () => {
     try {
-      const { data, error } = await supabase
-        .from('content_history')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (error) throw error
+      const data: any = await aiContentApi.getRecentContentHistory(sessionId)
       setContentHistory(data || [])
     } catch (error: any) {
       console.error('加载历史记录失败:', error)
@@ -55,19 +48,15 @@ const GeneratorPage: React.FC<GeneratorPageProps> = ({ sessionId, userPreference
 
     setIsGeneratingTitles(true)
     try {
-      const { data, error } = await supabase.functions.invoke('title-generator', {
-        body: {
-          topic: topic.trim(),
-          contentType,
-          sessionId,
-          userPreferences,
-          keywords: userPreferences?.keywords || userPreferences?.common_keywords || []
-        }
+      const result: any = await aiContentApi.generateTitles({
+        topic: topic.trim(),
+        contentType,
+        sessionId,
+        userPreferences,
+        keywords: userPreferences?.keywords || userPreferences?.common_keywords || []
       })
 
-      if (error) throw error
-
-      setTitleSuggestions(data.data.titles || [])
+      setTitleSuggestions(result.data.titles || [])
       showSuccess('标题建议生成成功！')
     } catch (error: any) {
       showError('标题生成失败：' + error.message)
@@ -86,21 +75,17 @@ const GeneratorPage: React.FC<GeneratorPageProps> = ({ sessionId, userPreference
 
     setIsGeneratingContent(true)
     try {
-      const { data, error } = await supabase.functions.invoke('content-generator', {
-        body: {
-          title: finalTitle.trim(),
-          requirements: requirements.trim(),
-          contentType,
-          aiModel,
-          sessionId,
-          userPreferences,
-          targetLength
-        }
+      const result: any = await aiContentApi.generateContent({
+        title: finalTitle.trim(),
+        requirements: requirements.trim(),
+        contentType,
+        aiModel,
+        sessionId,
+        userPreferences,
+        targetLength
       })
 
-      if (error) throw error
-
-      setGeneratedContent(data.data.content)
+      setGeneratedContent(result.data.content)
       setShowPreview(true)
       showSuccess('内容生成成功！')
       loadContentHistory() // 刷新历史记录
@@ -141,12 +126,7 @@ const GeneratorPage: React.FC<GeneratorPageProps> = ({ sessionId, userPreference
   // 给内容评分
   const rateContent = async (contentId: string, rating: number) => {
     try {
-      const { error } = await supabase
-        .from('content_history')
-        .update({ rating })
-        .eq('id', contentId)
-
-      if (error) throw error
+      await aiContentApi.updateRating(contentId, rating)
       showSuccess('评分成功！')
       loadContentHistory()
     } catch (error: any) {

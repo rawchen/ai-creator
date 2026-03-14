@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Calendar, Search, Filter, Download, Copy, Eye, ThumbsUp, ThumbsDown, FileText, Trash2, RefreshCw } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { aiContentApi } from '../lib/api'
 import { useToast } from '../hooks/useToast'
 import ReactMarkdown from 'react-markdown'
 import jsPDF from 'jspdf'
@@ -32,14 +32,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ sessionId }) => {
   const loadContentHistory = async () => {
     setIsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('content_history')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setContentHistory(data || [])
+      const response = await aiContentApi.getContentHistory(sessionId)
+      const data = Array.isArray(response) ? response : []
+      console.log('data', data)
+      setContentHistory(data)
     } catch (error: any) {
       showError('加载历史记录失败：' + error.message)
     } finally {
@@ -75,20 +71,15 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ sessionId }) => {
   // 给内容评分
   const rateContent = async (contentId: string, rating: number) => {
     try {
-      const { error } = await supabase
-        .from('content_history')
-        .update({ rating })
-        .eq('id', contentId)
+      await aiContentApi.updateRating(contentId, rating)
 
-      if (error) throw error
-      
       // 更新本地数据
-      setContentHistory(prev => 
-        prev.map(item => 
+      setContentHistory(prev =>
+        prev.map(item =>
           item.id === contentId ? { ...item, rating } : item
         )
       )
-      
+
       showSuccess('评分成功！')
     } catch (error: any) {
       showError('评分失败：' + error.message)
@@ -126,13 +117,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ sessionId }) => {
     if (!confirm('确定要删除这条记录吗？')) return
 
     try {
-      const { error } = await supabase
-        .from('content_history')
-        .delete()
-        .eq('id', contentId)
-
-      if (error) throw error
-      
+      await aiContentApi.deleteContentHistory(contentId)
       setContentHistory(prev => prev.filter(item => item.id !== contentId))
       showSuccess('删除成功！')
     } catch (error: any) {
@@ -149,15 +134,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ sessionId }) => {
   // 标记为已导出
   const markAsExported = async (contentId: string) => {
     try {
-      const { error } = await supabase
-        .from('content_history')
-        .update({ is_exported: true })
-        .eq('id', contentId)
-
-      if (error) throw error
-      
-      setContentHistory(prev => 
-        prev.map(item => 
+      await aiContentApi.markAsExported(contentId)
+      setContentHistory(prev =>
+        prev.map(item =>
           item.id === contentId ? { ...item, is_exported: true } : item
         )
       )
